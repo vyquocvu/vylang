@@ -9,6 +9,7 @@ from rply import ParserGenerator
 
 from vlang.nodes import (
     Number,
+    Float,
     Boolean,
     Sum,
     Sub,
@@ -38,6 +39,7 @@ from vlang.nodes import (
 # All token names the parser may encounter.
 _TOKENS = [
     "SO_NGUYEN",
+    "SO_THUC",
     "IN_RA",
     "KHAI_BAO",
     "KHI",
@@ -204,6 +206,10 @@ class Parser:
         def number(p):
             return Number(p[0].value)
 
+        @self._pg.production("expression : SO_THUC")
+        def float_literal(p):
+            return Float(p[0].value)
+
         @self._pg.production("expression : DUNG")
         def expression_dung(p):
             return Boolean(True)
@@ -254,7 +260,13 @@ class Parser:
 
         @self._pg.error
         def error_handle(token):
-            raise ValueError(f"Unexpected token: {token!r}")
+            pos = token.source_pos
+            if pos is not None:
+                raise SyntaxError(
+                    f"Lỗi cú pháp tại dòng {pos.lineno}, cột {pos.colno}: "
+                    f"không thể xử lý '{token.value}'"
+                )
+            raise SyntaxError(f"Lỗi cú pháp: không thể xử lý '{token.value}'")
 
     def get_parser(self):
         """Build and return the rply parser object."""

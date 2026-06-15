@@ -80,3 +80,8 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 exclude = ["tests/", "scripts/"]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]

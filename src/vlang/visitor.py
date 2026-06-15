@@ -16,6 +16,12 @@ from __future__ import annotations
 
 from llvmlite import ir
 
+_I64 = ir.IntType(64)
+_I32 = ir.IntType(32)
+_I1 = ir.IntType(1)
+_I8 = ir.IntType(8)
+_F64 = ir.DoubleType()
+
 
 class CodeGenVisitor:
     """Emits LLVM IR for an AST using the provided module/builder/printf."""
@@ -40,33 +46,76 @@ class CodeGenVisitor:
         return method(node, env)
 
     # ------------------------------------------------------------------
+    # Type helpers
+    # ------------------------------------------------------------------
+
+    def _to_bool(self, val: ir.Value) -> ir.Value:
+        """Coerce any LLVM value to i1 (bool) for use in branch conditions."""
+        if val.type == _I1:
+            return val
+        if val.type == _F64:
+            return self.builder.fcmp_ordered("!=", val, ir.Constant(_F64, 0.0))
+        return self.builder.icmp_signed("!=", val, ir.Constant(val.type, 0))
+
+    def _promote(self, left: ir.Value, right: ir.Value):
+        """Promote int operand(s) to f64 when either side is a float."""
+        if left.type == _F64 or right.type == _F64:
+            if left.type != _F64:
+                left = self.builder.sitofp(left, _F64)
+            if right.type != _F64:
+                right = self.builder.sitofp(right, _F64)
+        return left, right
+
+    def _fmt_global(self, name: str, fmt: str) -> ir.GlobalVariable:
+        """Return (creating if needed) a module-level constant string for printf."""
+        if name in self.module.globals:
+            return self.module.get_global(name)
+        c_fmt = ir.Constant(
+            ir.ArrayType(_I8, len(fmt)),
+            bytearray(fmt.encode("utf8")),
+        )
+        gv = ir.GlobalVariable(self.module, c_fmt.type, name=name)
+        gv.linkage = "internal"
+        gv.global_constant = True
+        gv.initializer = c_fmt
+        return gv
+
+    # ------------------------------------------------------------------
     # Primitive nodes
     # ------------------------------------------------------------------
 
     def visit_Number(self, node, env):
-        return ir.Constant(ir.IntType(64), int(node.value))
+        return ir.Constant(_I64, int(node.value))
+
+    def visit_Float(self, node, env):
+        return ir.Constant(_F64, float(node.value))
 
     def visit_Boolean(self, node, env):
-        return ir.Constant(ir.IntType(1), 1 if node.value else 0)
+        return ir.Constant(_I1, 1 if node.value else 0)
 
     # ------------------------------------------------------------------
     # Binary arithmetic
     # ------------------------------------------------------------------
 
     def visit_Sum(self, node, env):
-        return self.builder.add(self.visit(node.left, env), self.visit(node.right, env))
+        left, right = self._promote(self.visit(node.left, env), self.visit(node.right, env))
+        return self.builder.fadd(left, right) if left.type == _F64 else self.builder.add(left, right)
 
     def visit_Sub(self, node, env):
-        return self.builder.sub(self.visit(node.left, env), self.visit(node.right, env))
+        left, right = self._promote(self.visit(node.left, env), self.visit(node.right, env))
+        return self.builder.fsub(left, right) if left.type == _F64 else self.builder.sub(left, right)
 
     def visit_Mul(self, node, env):
-        return self.builder.mul(self.visit(node.left, env), self.visit(node.right, env))
+        left, right = self._promote(self.visit(node.left, env), self.visit(node.right, env))
+        return self.builder.fmul(left, right) if left.type == _F64 else self.builder.mul(left, right)
 
     def visit_Div(self, node, env):
-        return self.builder.sdiv(self.visit(node.left, env), self.visit(node.right, env))
+        left, right = self._promote(self.visit(node.left, env), self.visit(node.right, env))
+        return self.builder.fdiv(left, right) if left.type == _F64 else self.builder.sdiv(left, right)
 
     def visit_Mod(self, node, env):
-        return self.builder.srem(self.visit(node.left, env), self.visit(node.right, env))
+        left, right = self._promote(self.visit(node.left, env), self.visit(node.right, env))
+        return self.builder.frem(left, right) if left.type == _F64 else self.builder.srem(left, right)
 
     # ------------------------------------------------------------------
     # Statements
@@ -75,21 +124,13 @@ class CodeGenVisitor:
     def visit_Print(self, node, env):
         value = self.visit(node.value, env)
 
-        voidptr_ty = ir.IntType(8).as_pointer()
-        fmt = "%i\n\0"
-        c_fmt = ir.Constant(
-            ir.ArrayType(ir.IntType(8), len(fmt)),
-            bytearray(fmt.encode("utf8")),
-        )
-        if "fstr" in self.module.globals:
-            global_fmt = self.module.get_global("fstr")
+        voidptr_ty = _I8.as_pointer()
+        if value.type == _F64:
+            gv = self._fmt_global("fstr_float", "%g\n\0")
         else:
-            global_fmt = ir.GlobalVariable(self.module, c_fmt.type, name="fstr")
-            global_fmt.linkage = "internal"
-            global_fmt.global_constant = True
-            global_fmt.initializer = c_fmt
-        fmt_arg = self.builder.bitcast(global_fmt, voidptr_ty)
+            gv = self._fmt_global("fstr", "%i\n\0")
 
+        fmt_arg = self.builder.bitcast(gv, voidptr_ty)
         self.builder.call(self.printf, [fmt_arg, value])
 
     def visit_Program(self, node, env):
@@ -127,19 +168,22 @@ class CodeGenVisitor:
     # ------------------------------------------------------------------
 
     def visit_Compare(self, node, env):
-        l_val = self.visit(node.left, env)
-        r_val = self.visit(node.right, env)
+        left = self.visit(node.left, env)
+        right = self.visit(node.right, env)
+        left, right = self._promote(left, right)
 
         op_map = {
-            "BANG": "==",
+            "BANG":        "==",
             "BANG_LON_HON": ">=",
             "BANG_NHO_HON": "<=",
-            "KHAC": "!=",
-            "LON_HON": ">",
-            "NHO_HON": "<",
+            "KHAC":        "!=",
+            "LON_HON":     ">",
+            "NHO_HON":     "<",
         }
         llvm_op = op_map[node.op_token]
-        return self.builder.icmp_signed(llvm_op, l_val, r_val)
+        if left.type == _F64:
+            return self.builder.fcmp_ordered(llvm_op, left, right)
+        return self.builder.icmp_signed(llvm_op, left, right)
 
     # ------------------------------------------------------------------
     # Loop
@@ -148,14 +192,12 @@ class CodeGenVisitor:
     def visit_WhileLoop(self, node, env):
         cond_block = self.builder.append_basic_block("loop_cond")
         body_block = self.builder.append_basic_block("loop_body")
-        end_block = self.builder.append_basic_block("loop_end")
+        end_block  = self.builder.append_basic_block("loop_end")
 
         self.builder.branch(cond_block)
 
         self.builder.position_at_end(cond_block)
-        cond_val = self.visit(node.condition, env)
-        if cond_val.type != ir.IntType(1):
-            cond_val = self.builder.icmp_signed("!=", cond_val, ir.Constant(cond_val.type, 0))
+        cond_val = self._to_bool(self.visit(node.condition, env))
         self.builder.cbranch(cond_val, body_block, end_block)
 
         self.builder.position_at_end(body_block)
@@ -170,33 +212,25 @@ class CodeGenVisitor:
     # ------------------------------------------------------------------
 
     def visit_IfStmt(self, node, env):
-        cond_val = self.visit(node.condition, env)
-        if cond_val.type != ir.IntType(1):
-            cond_val = self.builder.icmp_signed("!=", cond_val, ir.Constant(cond_val.type, 0))
+        cond_val = self._to_bool(self.visit(node.condition, env))
 
-        then_block = self.builder.append_basic_block("if_then")
-        else_block = self.builder.append_basic_block("if_else") if node.else_body else None
+        then_block  = self.builder.append_basic_block("if_then")
+        else_block  = self.builder.append_basic_block("if_else") if node.else_body else None
         merge_block = self.builder.append_basic_block("if_merge")
 
-        if else_block:
-            self.builder.cbranch(cond_val, then_block, else_block)
-        else:
-            self.builder.cbranch(cond_val, then_block, merge_block)
+        self.builder.cbranch(cond_val, then_block, else_block if else_block else merge_block)
 
-        # Build then block
         self.builder.position_at_end(then_block)
         self.visit(node.then_body, env)
         if not self.builder.block.is_terminated:
             self.builder.branch(merge_block)
 
-        # Build else block if it exists
         if else_block:
             self.builder.position_at_end(else_block)
             self.visit(node.else_body, env)
             if not self.builder.block.is_terminated:
                 self.builder.branch(merge_block)
 
-        # Position builder at merge block
         self.builder.position_at_end(merge_block)
 
     # ------------------------------------------------------------------
@@ -204,37 +238,26 @@ class CodeGenVisitor:
     # ------------------------------------------------------------------
 
     def visit_FuncDef(self, node, env):
-        # All functions return i64 in our implementation
-        func_type = ir.FunctionType(ir.IntType(64), [ir.IntType(64)] * len(node.params))
+        # Functions are typed i64→i64 in this version (no float params/returns yet)
+        func_type = ir.FunctionType(_I64, [_I64] * len(node.params))
         func = ir.Function(self.module, func_type, name=node.name)
         env[node.name] = func
 
-        # Build function entry
         entry_block = func.append_basic_block("entry")
         saved_block = self.builder.block
-
-        # Switch builder position to function block
         self.builder.position_at_end(entry_block)
 
-        # Bind parameters to stack inside a local environment scope
-        local_env = {}
-        for k, v in env.items():
-            if isinstance(v, ir.Function):
-                local_env[k] = v
-
+        local_env = {k: v for k, v in env.items() if isinstance(v, ir.Function)}
         for param_name, arg in zip(node.params, func.args):
-            ptr = self.builder.alloca(ir.IntType(64), name=param_name)
+            ptr = self.builder.alloca(_I64, name=param_name)
             self.builder.store(arg, ptr)
             local_env[param_name] = ptr
 
-        # Evaluate body
         self.visit(node.body, local_env)
 
-        # Handle missing return (implicit return 0)
         if not self.builder.block.is_terminated:
-            self.builder.ret(ir.Constant(ir.IntType(64), 0))
+            self.builder.ret(ir.Constant(_I64, 0))
 
-        # Restore builder to main module block
         self.builder.position_at_end(saved_block)
 
     def visit_ReturnStmt(self, node, env):
@@ -242,7 +265,6 @@ class CodeGenVisitor:
         self.builder.ret(val)
 
     def visit_CallExpr(self, node, env):
-        # Check local env first
         if node.name in env:
             func = env[node.name]
         elif node.name in self.module.globals:
@@ -254,7 +276,7 @@ class CodeGenVisitor:
         for arg in node.args:
             val = self.visit(arg, env)
             if isinstance(val.type, ir.PointerType):
-                val = self.builder.ptrtoint(val, ir.IntType(64))
+                val = self.builder.ptrtoint(val, _I64)
             arg_vals.append(val)
         return self.builder.call(func, arg_vals)
 
@@ -264,55 +286,45 @@ class CodeGenVisitor:
 
     def visit_ArrayLiteral(self, node, env):
         size = len(node.elements)
-        # Default to i64 if empty
-        elem_type = ir.IntType(64)
+        elem_type = _I64
         if size > 0:
             first_val = self.visit(node.elements[0], env)
             elem_type = first_val.type
 
-        arr_type = ir.ArrayType(elem_type, size)
-        # Allocate the array on the stack
+        arr_type  = ir.ArrayType(elem_type, size)
         arr_alloc = self.builder.alloca(arr_type, name="array_literal")
 
-        # Store each element
         for i, expr in enumerate(node.elements):
             val = self.visit(expr, env)
             elem_ptr = self.builder.gep(arr_alloc, [
-                ir.Constant(ir.IntType(32), 0),
-                ir.Constant(ir.IntType(32), i)
+                ir.Constant(_I32, 0),
+                ir.Constant(_I32, i),
             ])
             self.builder.store(val, elem_ptr)
 
-        # Decay to a pointer to the first element (i64*)
         return self.builder.gep(arr_alloc, [
-            ir.Constant(ir.IntType(32), 0),
-            ir.Constant(ir.IntType(32), 0)
+            ir.Constant(_I32, 0),
+            ir.Constant(_I32, 0),
         ])
 
     def visit_ArrayIndex(self, node, env):
         arr_val = self.visit(node.array_expr, env)
-
-        # If the array was passed as an integer parameter, cast it back to i64*
-        if arr_val.type == ir.IntType(64):
-            arr_ptr = self.builder.inttoptr(arr_val, ir.PointerType(ir.IntType(64)))
+        if arr_val.type == _I64:
+            arr_ptr = self.builder.inttoptr(arr_val, ir.PointerType(_I64))
         else:
             arr_ptr = arr_val
-
-        idx_val = self.visit(node.index_expr, env)
+        idx_val  = self.visit(node.index_expr, env)
         elem_ptr = self.builder.gep(arr_ptr, [idx_val])
         return self.builder.load(elem_ptr)
 
     def visit_ArrayAssign(self, node, env):
         arr_val = self.visit(node.array_expr, env)
-
-        # If the array was passed as an integer parameter, cast it back to i64*
-        if arr_val.type == ir.IntType(64):
-            arr_ptr = self.builder.inttoptr(arr_val, ir.PointerType(ir.IntType(64)))
+        if arr_val.type == _I64:
+            arr_ptr = self.builder.inttoptr(arr_val, ir.PointerType(_I64))
         else:
             arr_ptr = arr_val
-
-        idx_val = self.visit(node.index_expr, env)
-        val = self.visit(node.value_expr, env)
+        idx_val  = self.visit(node.index_expr, env)
+        val      = self.visit(node.value_expr, env)
         elem_ptr = self.builder.gep(arr_ptr, [idx_val])
         self.builder.store(val, elem_ptr)
 
@@ -321,21 +333,13 @@ class CodeGenVisitor:
     # ------------------------------------------------------------------
 
     def visit_LogicalAnd(self, node, env):
-        l_val = self.visit(node.left, env)
-        r_val = self.visit(node.right, env)
-        if l_val.type != ir.IntType(1):
-            l_val = self.builder.icmp_signed("!=", l_val, ir.Constant(l_val.type, 0))
-        if r_val.type != ir.IntType(1):
-            r_val = self.builder.icmp_signed("!=", r_val, ir.Constant(r_val.type, 0))
+        l_val = self._to_bool(self.visit(node.left, env))
+        r_val = self._to_bool(self.visit(node.right, env))
         return self.builder.and_(l_val, r_val)
 
     def visit_LogicalOr(self, node, env):
-        l_val = self.visit(node.left, env)
-        r_val = self.visit(node.right, env)
-        if l_val.type != ir.IntType(1):
-            l_val = self.builder.icmp_signed("!=", l_val, ir.Constant(l_val.type, 0))
-        if r_val.type != ir.IntType(1):
-            r_val = self.builder.icmp_signed("!=", r_val, ir.Constant(r_val.type, 0))
+        l_val = self._to_bool(self.visit(node.left, env))
+        r_val = self._to_bool(self.visit(node.right, env))
         return self.builder.or_(l_val, r_val)
 
     # ------------------------------------------------------------------
@@ -344,4 +348,6 @@ class CodeGenVisitor:
 
     def visit_UnaryMinus(self, node, env):
         val = self.visit(node.operand, env)
+        if val.type == _F64:
+            return self.builder.fneg(val)
         return self.builder.neg(val)

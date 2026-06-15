@@ -600,6 +600,11 @@ dev = [
     { name = "syrupy" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6" },
@@ -612,3 +617,6 @@ requires-dist = [
     { name = "syrupy", marker = "extra == 'dev'", specifier = ">=4" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-cov", specifier = ">=7.1.0" }]
