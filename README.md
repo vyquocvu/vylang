@@ -77,9 +77,7 @@ pytest tests/ -v
 |---|---|---|
 | `in_ra` | print | In giá trị ra màn hình |
 | `và` | and | Toán tử logic `&&` |
-| `bắt_đầu` | begin | Bắt đầu một khối lệnh |
 | `ngắt` | break | Thoát khỏi vòng lặp |
-| `trường_hợp` | case | So sánh nhiều trường hợp |
 | `lớp` | class | Định nghĩa lớp |
 | `hàm` | def / func | Định nghĩa hàm |
 | `hằng_số` | const | Khai báo hằng số |
