@@ -77,9 +77,7 @@ pytest tests/ -v
 |---|---|---|
 | `in_ra` | print | In giá trị ra màn hình |
 | `và` | and | Toán tử logic `&&` |
-| `bắt_đầu` | begin | Bắt đầu một khối lệnh |
 | `ngắt` | break | Thoát khỏi vòng lặp |
-| `trường_hợp` | case | So sánh nhiều trường hợp |
 | `lớp` | class | Định nghĩa lớp |
 | `hàm` | def / func | Định nghĩa hàm |
 | `hằng_số` | const | Khai báo hằng số |
@@ -101,6 +99,8 @@ pytest tests/ -v
 | `khi` | while | Lặp khi điều kiện đúng |
 | `mở_rộng` | extends | Kế thừa lớp cha |
 | `bản_thân` | self | Đối tượng hiện tại |
+
+> Danh sách đầy đủ (bao gồm OOP, ngoại lệ, module, và các hàm dựng sẵn) ở [docs/reference/keywords.md](docs/reference/keywords.md).
 
 ## Toán tử (Operators)
 

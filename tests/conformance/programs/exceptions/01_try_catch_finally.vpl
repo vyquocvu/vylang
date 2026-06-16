@@ -1,0 +1,15 @@
+thử thì
+  in_ra(1)
+  ném 42
+  in_ra(2)
+bắt e thì
+  in_ra(e)
+hết
+
+thử thì
+  in_ra(10)
+bắt e thì
+  in_ra(20)
+cuối_cùng thì
+  in_ra(30)
+hết

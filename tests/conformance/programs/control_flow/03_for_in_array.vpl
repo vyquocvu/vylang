@@ -1,0 +1,4 @@
+khai_báo arr = [10, 20, 30]
+lặp v trong arr thì
+  in_ra(v)
+hết

@@ -21,6 +21,41 @@ from vlang.parser import Parser
 from vlang.codegen import CodeGen
 
 
+def _expand_imports(ast, base_dir: Path, seen: set[Path] | None = None) -> None:
+    """Recursively splice ``nạp "path"`` imports into *ast* in place.
+
+    vylang has no module/linking system, so imports are resolved at the AST
+    level: each ``ImportStmt`` is replaced by the statements of the parsed
+    file it references, relative to the importing file's directory.
+    """
+    from vlang.nodes import ImportStmt
+
+    if seen is None:
+        seen = set()
+
+    new_statements = []
+    for stmt in ast.statements:
+        if isinstance(stmt, ImportStmt):
+            import_path = (base_dir / stmt.path).resolve()
+            if import_path in seen:
+                continue
+            seen.add(import_path)
+
+            text = import_path.read_text(encoding="utf-8")
+            lexer = Lexer().get_lexer()
+            tokens = lexer.lex(text)
+            pg = Parser()
+            pg.parse()
+            parser = pg.get_parser()
+            sub_ast = parser.parse(tokens)
+
+            _expand_imports(sub_ast, import_path.parent, seen)
+            new_statements.extend(sub_ast.statements)
+        else:
+            new_statements.append(stmt)
+    ast.statements = new_statements
+
+
 def _compile(source: Path, output_name: str | None, ir_only: bool) -> int:
     """Run the full compilation pipeline.
 
@@ -46,6 +81,7 @@ def _compile(source: Path, output_name: str | None, ir_only: bool) -> int:
 
     try:
         ast = parser.parse(tokens)
+        _expand_imports(ast, source.parent.resolve())
         codegen.generate(ast)
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -1,0 +1,8 @@
+khai_báo x = 5
+nếu x > 10 thì
+  in_ra(1)
+khác_nếu x > 3 thì
+  in_ra(2)
+khác_thì
+  in_ra(3)
+hết
