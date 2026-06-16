@@ -1,0 +1,3 @@
+hàm nhân_đôi(x)
+  trả_về x * 2
+hết

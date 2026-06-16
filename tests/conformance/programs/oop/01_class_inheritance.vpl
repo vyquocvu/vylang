@@ -1,0 +1,23 @@
+lớp Động_vật thì
+  khai_báo tên = 0
+  khai_báo tuổi = 0
+
+  hàm khởi_tạo(t)
+    bản_thân.tuổi = t
+  hết
+
+  hàm nói()
+    in_ra(bản_thân.tuổi)
+  hết
+hết
+
+lớp Chó mở_rộng Động_vật thì
+  hàm sủa()
+    in_ra(999)
+  hết
+hết
+
+khai_báo c = Chó(7)
+c.nói()
+c.sủa()
+in_ra(c.tuổi)

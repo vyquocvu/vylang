@@ -1,0 +1,5 @@
+in_ra("xin chào")
+in_ra(trống)
+in_ra(kiểu(5))
+in_ra(kiểu("abc"))
+in_ra(kiểu(đúng))

@@ -1,0 +1,10 @@
+cấu_trúc Điểm thì
+  khai_báo x = 0
+  khai_báo y = 0
+hết
+
+khai_báo p = Điểm()
+p.x = 5
+p.y = 10
+in_ra(p.x)
+in_ra(p.y)

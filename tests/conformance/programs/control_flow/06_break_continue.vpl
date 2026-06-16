@@ -1,0 +1,11 @@
+khai_báo i = 0
+khi i < 10 thì
+  i = i + 1
+  nếu i == 3 thì
+    tiếp_theo
+  hết
+  nếu i == 7 thì
+    ngắt
+  hết
+  in_ra(i)
+hết

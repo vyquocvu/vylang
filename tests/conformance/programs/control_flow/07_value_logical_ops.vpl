@@ -1,0 +1,21 @@
+hằng_số y = 100
+in_ra(y)
+
+khai_báo a = 5
+nếu a là 5 thì
+  in_ra(111)
+hết
+nếu a không_là 6 thì
+  in_ra(222)
+hết
+
+khai_báo arr2 = [1, 2, 3]
+nếu 2 trong arr2 thì
+  in_ra(333)
+hết
+nếu 9 không_trong arr2 thì
+  in_ra(444)
+hết
+
+in_ra(đúng hoặc_loại sai)
+in_ra(không đúng)

@@ -100,6 +100,8 @@ pytest tests/ -v
 | `mở_rộng` | extends | Kế thừa lớp cha |
 | `bản_thân` | self | Đối tượng hiện tại |
 
+> Danh sách đầy đủ (bao gồm OOP, ngoại lệ, module, và các hàm dựng sẵn) ở [docs/reference/keywords.md](docs/reference/keywords.md).
+
 ## Toán tử (Operators)
 
 ```

@@ -1,0 +1,6 @@
+nếu_không sai thì
+  in_ra(1)
+hết
+nếu_không đúng thì
+  in_ra(2)
+hết

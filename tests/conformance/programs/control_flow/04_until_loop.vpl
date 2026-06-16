@@ -1,0 +1,5 @@
+khai_báo z = 0
+đến_khi z >= 3 thì
+  in_ra(z)
+  z = z + 1
+hết
