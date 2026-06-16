@@ -25,6 +25,13 @@ class Number:
 
 
 @dataclass
+class Float:
+    """A floating-point literal node. ``value`` is the raw source string."""
+
+    value: str
+
+
+@dataclass
 class Boolean:
     """A boolean literal node (``đúng`` / ``sai``)."""
 

@@ -89,3 +89,16 @@ class CodeGen:
         """Write the LLVM IR text to *filename* (e.g. ``output.ll``)."""
         with open(filename, "w", encoding="utf-8") as fh:
             fh.write(str(self.module))
+
+    def jit_run(self) -> None:
+        """JIT-compile and execute ``main()`` in-process via MCJIT + ctypes.
+
+        printf calls inside the program write directly to the process stdout,
+        so REPL output appears immediately without subprocess overhead.
+        """
+        import ctypes
+
+        mod = self._compile_ir()
+        func_ptr = self.engine.get_function_address("main")
+        cfunc = ctypes.CFUNCTYPE(None)(func_ptr)
+        cfunc()

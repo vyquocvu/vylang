@@ -81,6 +81,8 @@ class Lexer:
         self._lg.add("CHIA", r"\/")
         self._lg.add("CHIA_DU", r"\%")
 
+        # Float literals must come before integers to avoid "3" matching "3.14"
+        self._lg.add("SO_THUC", r"\d+\.\d+")
         self._lg.add("SO_NGUYEN", r"\d+")
 
         # ------------------------------------------------------------------

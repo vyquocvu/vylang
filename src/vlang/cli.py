@@ -112,6 +112,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--ir-only", action="store_true",
         help="Only emit LLVM IR; skip linking (default when -o is omitted)",
     )
+
+    sub.add_parser("repl", help="Start the interactive REPL")
+
     return ap
 
 
@@ -121,6 +124,10 @@ def main() -> None:
 
     if args.command == "compile":
         sys.exit(_compile(args.source, args.output_name, args.ir_only))
+
+    if args.command == "repl":
+        from vlang.repl import run_repl
+        run_repl()
 
 
 if __name__ == "__main__":

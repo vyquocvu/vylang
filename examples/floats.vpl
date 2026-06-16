@@ -1,0 +1,27 @@
+# Ví dụ số thực (floating-point numbers)
+# Demonstrates float literals and arithmetic
+
+# Basic float printing
+in_ra(3.14)
+
+# Float arithmetic
+in_ra(1.5 + 2.5)
+in_ra(10.0 - 3.5)
+in_ra(2.0 * 3.14)
+in_ra(7.0 / 2.0)
+
+# Mixed integer and float (integer is promoted to float)
+in_ra(1 + 0.5)
+in_ra(10 / 4.0)
+
+# Float variables
+khai_báo pi = 3.14159
+khai_báo r = 5.0
+khai_báo dien_tich = pi * r * r
+in_ra(dien_tich)
+
+# Float comparison
+khai_báo x = 1.5
+nếu x > 1.0 thì
+in_ra(1)
+hết
